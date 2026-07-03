@@ -146,7 +146,36 @@ Output format: JSON {"offer": {...}, "rationale": "...", "flag_impasse": bool}`;
 
   private generateMockTurn(context: any, role: string): TurnResponse {
     const turnCount = context.turnHistory.length;
-    // Simulate convergence after a few turns
+    const topic = (context.topic || '').toLowerCase();
+
+    // §10: Impasse path with 3 distinct scenario fixtures
+    if (topic.includes('impasse fixture a') || topic.includes('bill-splitting gap')) {
+      if (turnCount >= 1) {
+        return {
+          offer: { amount: 80, currency: 'USD' },
+          rationale: `Structural divergence detected: Shape Nova's minimum floor ($150) exceeds Shape Atlas's maximum ceiling ($100) by $50. No overlapping settlement zone exists within private human constraints (§1, §3.3).`,
+          flag_impasse: true,
+        };
+      }
+    } else if (topic.includes('impasse fixture b') || topic.includes('scheduling conflict')) {
+      if (turnCount >= 1) {
+        return {
+          offer: { earliest_date: '2026-08-01', latest_date: '2026-08-10' },
+          rationale: `Temporal divergence detected: Shape Nova requires dates between Aug 1–10, whereas Shape Atlas requires dates between Aug 15–25. Zero calendar overlap exists for a 7-day trip without altering human availability (§1, §3.3).`,
+          flag_impasse: true,
+        };
+      }
+    } else if (topic.includes('impasse fixture c') || topic.includes('budget priority')) {
+      if (turnCount >= 1) {
+        return {
+          offer: { max_total_budget: 1500, currency: 'USD' },
+          rationale: `Priority & budget divergence detected: Shape Nova's mandatory amenities require a minimum of $300/person ($3,000 total), while Shape Atlas is strictly capped at a $1,500 total budget ($150/person). Quality floor and budget ceiling cannot be reconciled (§1, §3.3).`,
+          flag_impasse: true,
+        };
+      }
+    }
+
+    // Simulate convergence after a few turns for happy path
     if (turnCount >= 4) {
       return {
         offer: { amount: 60, currency: 'USD' },

@@ -201,7 +201,7 @@ export class NegotiationOrchestrator {
       if (turnResp.flag_impasse) {
         newStatus = 'impasse';
         resolutionOutcome = 'impasse';
-        divergenceNotes = `Shape ${activeParticipant.shape_id} flagged impasse: no further movement possible within constraints.`;
+        divergenceNotes = turnResp.rationale || `Shape ${activeParticipant.shape_id} flagged impasse: no further movement possible within constraints.`;
       } else if (gapAfter && typeof gapAfter.amountGap === 'number' && gapAfter.amountGap <= 5) {
         // Convergence tolerance band (§3.3)
         newStatus = 'converged';
