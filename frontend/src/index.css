@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds */
+  --shapes-bg-void: #0b0713;        /* deepest background, app shell */
+  --shapes-bg-surface: #150f24;     /* cards, panels */
+  --shapes-bg-surface-raised: #1e1533; /* modals, elevated cards */
+  --shapes-bg-hover: #271c40;
+
+  /* Purple/violet brand ramp */
+  --shapes-violet-100: #efe7ff;
+  --shapes-violet-300: #c9aeff;
+  --shapes-violet-500: #9b6bff;   /* primary brand accent */
+  --shapes-violet-700: #6f3fd6;
+  --shapes-violet-900: #3a1f73;
+
+  /* Secondary accent — for "shape B" side / contrast */
+  --shapes-cyan-400: #5ce1e6;
+
+  /* Semantic */
+  --shapes-success: #4ade80;
+  --shapes-warning: #fbbf24;
+  --shapes-danger: #f87171;
+
+  /* Text */
+  --shapes-text-primary: #f5f2fb;
+  --shapes-text-secondary: #b8aed1;
+  --shapes-text-muted: #7a6f96;
+
+  /* Borders */
+  --shapes-border-subtle: rgba(155, 107, 255, 0.15);
+  --shapes-border-strong: rgba(155, 107, 255, 0.4);
+
+  /* Radii / spacing */
+  --shapes-radius-sm: 8px;
+  --shapes-radius-md: 14px;
+  --shapes-radius-lg: 24px;
+  --shapes-glow: 0 0 24px rgba(155, 107, 255, 0.25);
+}
+
+body {
+  background-color: var(--shapes-bg-void);
+  color: var(--shapes-text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
