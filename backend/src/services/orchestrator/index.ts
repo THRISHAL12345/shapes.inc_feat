@@ -147,11 +147,16 @@ export class NegotiationOrchestrator {
       throw new Error(`Cannot execute turn: session status is '${session.status}'`);
     }
 
-    // Strict Rule §5.3: Acquire turn lock to prevent out-of-order execution or concurrent turns
-    const acquired = await this.lock.acquire(sessionId);
+    // Strict Rule §5.3: Acquire turn lock with 60s TTL to prevent out-of-order execution or concurrent turns
+    const acquired = await this.lock.acquire(sessionId, 60000);
     if (!acquired) {
       throw new Error(`Turn currently in progress for session '${sessionId}'. Strict turn sequencing lock active.`);
     }
+
+    // Heartbeat renewal: extend TTL every 10s while LLM call is in flight to prevent mid-flight expiration
+    const heartbeatTimer = setInterval(() => {
+      this.lock.extend(sessionId, 60000).catch(() => {});
+    }, 10000);
 
     try {
       const turns = await this.repo.getVisibleTurns(sessionId);
@@ -233,6 +238,7 @@ export class NegotiationOrchestrator {
 
       return { turn, sessionStatus: newStatus, resolution };
     } finally {
+      clearInterval(heartbeatTimer);
       await this.lock.release(sessionId);
     }
   }
@@ -245,6 +251,7 @@ export class NegotiationOrchestrator {
     if (!session) throw new Error('Session not found');
     
     // Log resolution outcome for future tuning (§3.4)
+    await this.repo.createHumanResolution(sessionId, humanId, action, counterOffer);
     console.log(`[orchestrator] Human ${humanId} took action '${action}' on session ${sessionId}`, counterOffer || '');
     return {
       status: 'recorded',

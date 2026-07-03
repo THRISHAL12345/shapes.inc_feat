@@ -151,4 +151,29 @@ describe('NegotiationOrchestrator (§3, §5.1, §5.3)', () => {
       /Turn currently in progress/
     );
   });
+
+  it('should support lock TTL extension via extend() method (§5.3)', async () => {
+    const sessionId = 'test-extend-session';
+    await lock.acquire(sessionId, 500);
+    expect(await lock.isLocked(sessionId)).toBe(true);
+
+    const extended = await lock.extend(sessionId, 5000);
+    expect(extended).toBe(true);
+    expect(await lock.isLocked(sessionId)).toBe(true);
+
+    await lock.release(sessionId);
+    expect(await lock.isLocked(sessionId)).toBe(false);
+  });
+
+  it('should persist human resolution outcomes in the repository (§3.4)', async () => {
+    const session = await repo.createSession('Budget Split', { amount: 1000 });
+    const res = await orchestrator.handleHumanResolution(session.id, 'human-42', 'counter', { amount: 600 });
+
+    expect(res.status).toBe('recorded');
+    const resolutions = await repo.getHumanResolutionsBySession(session.id);
+    expect(resolutions).toHaveLength(1);
+    expect(resolutions[0].human_id).toBe('human-42');
+    expect(resolutions[0].action).toBe('counter');
+    expect(resolutions[0].counter_offer).toEqual({ amount: 600 });
+  });
 });

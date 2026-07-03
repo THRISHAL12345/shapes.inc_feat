@@ -46,37 +46,37 @@ Your shapes negotiate **in a visible, spectator-friendly sub-thread**. They advo
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Frontend (React + Vite + Tailwind)        │
-│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────────────┐   │
-│  │ HeaderBar│ │ GapMeter │ │Transcript │ │ ResolutionCard   │   │
-│  │ (avatars)│ │(animated)│ │ (L/R alt) │ │(Accept/Counter)  │   │
-│  └──────────┘ └──────────┘ └───────────┘ └──────────────────┘   │
+│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────────────┐    │
+│  │ HeaderBar│ │ GapMeter │ │Transcript │ │ ResolutionCard   │    │
+│  │ (avatars)│ │(animated)│ │ (L/R alt) │ │(Accept/Counter)  │    │
+│  └──────────┘ └──────────┘ └───────────┘ └──────────────────┘    │
 │  ┌────────────────────┐  ┌───────────────────────────────────┐   │
 │  │ ConstraintModal    │  │ NudgeReactions (own-side only)    │   │
-│  │ (slider, no text)  │  │ (emoji → private shape signal)   │   │
+│  │ (slider, no text)  │  │ (emoji → private shape signal)    │   |
 │  └────────────────────┘  └───────────────────────────────────┘   │
 └────────────────────────────┬─────────────────────────────────────┘
                              │ REST + SSE
 ┌────────────────────────────▼─────────────────────────────────────┐
-│                        Backend (Express + TypeScript)             │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │              negotiation-orchestrator                        │  │
-│  │  Session lifecycle · Consent flow · Turn sequencing          │  │
-│  │  Convergence/Impasse/Timeout detection                       │  │
-│  └─────────────┬───────────────────────────────┬───────────────┘  │
-│                │                               │                  │
+│                        Backend (Express + TypeScript)            │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │              negotiation-orchestrator                       │ │
+│  │  Session lifecycle · Consent flow · Turn sequencing         │ │
+│  │  Convergence/Impasse/Timeout detection                      │ │
+│  └─────────────┬───────────────────────────────┬───────────────┘ │
+│                │                               │                 │
 │  ┌─────────────▼──────────────┐  ┌─────────────▼──────────────┐  │
-│  │  negotiation-llm-service   │  │  negotiation-notify-service │  │
-│  │  buildContext() [ISOLATED] │  │  Consent cards · Resolution │  │
-│  │  System prompt (§5.4)      │  │  DMs · Event emitter        │  │
+│  │  negotiation-llm-service   │  │  negotiation-notify-service│  │
+│  │  buildContext() [ISOLATED] │  │  Consent cards · Resolution│  │
+│  │  System prompt (§5.4)      │  │  DMs · Event emitter       │  │
 │  │  Sanity check (§5.5)       │  └────────────────────────────┘  │
-│  │  OpenRouter API            │                                   │
-│  └────────────────────────────┘                                   │
-│                                                                   │
+│  │  OpenRouter API            │                                  │
+│  └────────────────────────────┘                                  │
+│                                                                  │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
-│  │   Guardrails      │  │    TurnLock       │  │  DTO Layer     │  │
-│  │ Rate limit (3/7d) │  │ Redis / InMemory  │  │ Private fields │  │
-│  │ Scope allowlist   │  │ Strict alternation│  │ NEVER exposed  │  │
+│  │   Guardrails     │  │    TurnLock       │  │  DTO Layer    │  │
+│  │ Rate limit (3/7d)│  │ Redis / InMemory  │  │ Private fields│  │
+│  │ Scope allowlist  │  │ Strict alternation│  │ NEVER exposed │  │
 │  └──────────────────┘  └──────────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
          │                    │
@@ -95,7 +95,7 @@ Your shapes negotiate **in a visible, spectator-friendly sub-thread**. They advo
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│   Shape A's LLM context must NEVER contain Shape B's       │
+│   Shape A's LLM context must NEVER contain Shape B's        │
 │   private floor / ceiling / priority weights.               │
 │                                                             │
 │   This is enforced at the DATA-ACCESS LAYER with runtime    │
