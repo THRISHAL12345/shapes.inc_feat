@@ -3,6 +3,7 @@ import { defaultOrchestrator, NegotiationOrchestrator } from '../services/orches
 import { defaultGuardrails, NegotiationGuardrails } from '../services/guardrails';
 import { defaultRepository, INegotiationRepository } from '../db/repository';
 import { defaultNotifyService, NegotiationNotifyService } from '../services/notify';
+import { defaultLLMService, NegotiationLLMService } from '../services/llm';
 import { toSessionResponseDTO } from './dto';
 
 /**
@@ -13,7 +14,8 @@ export function createNegotiationRouter(
   orchestrator: NegotiationOrchestrator = defaultOrchestrator,
   repo: INegotiationRepository = defaultRepository,
   guardrails: NegotiationGuardrails = defaultGuardrails,
-  notify: NegotiationNotifyService = defaultNotifyService
+  notify: NegotiationNotifyService = defaultNotifyService,
+  llm: NegotiationLLMService = defaultLLMService
 ): Router {
   const router = Router();
 
@@ -102,6 +104,22 @@ export function createNegotiationRouter(
     try {
       const { id } = req.params;
       const { participantId, floor, ceiling, priorities } = req.body;
+
+      const session = await repo.getSession(id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      if (session.status !== 'pending_consent') {
+        res.status(400).json({ error: `Cannot update private constraints: session status is '${session.status}', must be 'pending_consent'` });
+        return;
+      }
+
+      const sanity = await llm.checkConstraintsSanity(session.shared_facts, floor, ceiling);
+      if (!sanity.valid) {
+        res.status(400).json({ error: `Sanity check failed: ${sanity.reason || 'Bad-faith ask detected'}` });
+        return;
+      }
 
       await repo.createPrivateConstraints(id, participantId, floor, ceiling, priorities);
       res.json({ status: 'recorded', message: 'Private constraints updated securely.' });

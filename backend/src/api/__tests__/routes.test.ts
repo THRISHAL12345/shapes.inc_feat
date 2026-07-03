@@ -136,4 +136,70 @@ describe('Negotiate API Routes & DTO Constraint Stripping (§6, §8)', () => {
     expect(res.body.status).toBe('reaction_recorded');
     expect(res.body.emoji).toBe('👍');
   });
+
+  it('should guard POST /sessions/:id/constraints against mid-session overwrites and bad-faith asks (§5.5, §8)', async () => {
+    // Create session
+    const createRes = await request(app)
+      .post('/api/negotiate/sessions')
+      .send({
+        topic: 'Split Dinner Bill',
+        sharedFacts: { total: 100 },
+        initiatorHumanId: 'h-1',
+        initiatorShapeId: 's-1',
+        initiatorFloor: { amount: 40 },
+        initiatorCeiling: { amount: 60 },
+        initiatorPriorities: { cost: 1 },
+        counterpartyHumanId: 'h-2',
+        counterpartyShapeId: 's-2',
+      });
+    const sessionId = createRes.body.id;
+    const counterparty = createRes.body.participants.find((p: any) => p.role === 'counterparty');
+
+    // Reject bad faith ask ($0 on shared cost)
+    const badFaithRes = await request(app)
+      .post(`/api/negotiate/sessions/${sessionId}/constraints`)
+      .send({
+        participantId: counterparty.id,
+        floor: { amount: 0 },
+        ceiling: { amount: 0 },
+        priorities: {},
+      });
+    expect(badFaithRes.status).toBe(400);
+    expect(badFaithRes.body.error).toContain('Sanity check failed');
+
+    // Accept valid ask while pending_consent
+    const validRes = await request(app)
+      .post(`/api/negotiate/sessions/${sessionId}/constraints`)
+      .send({
+        participantId: counterparty.id,
+        floor: { amount: 40 },
+        ceiling: { amount: 60 },
+        priorities: {},
+      });
+    expect(validRes.status).toBe(200);
+    expect(validRes.body.status).toBe('recorded');
+
+    // Activate session via consent
+    await request(app)
+      .post(`/api/negotiate/sessions/${sessionId}/consent`)
+      .send({
+        participantId: counterparty.id,
+        accept: true,
+        floor: { amount: 40 },
+        ceiling: { amount: 60 },
+        priorities: {},
+      });
+
+    // Attempt constraint update after session is active -> MUST fail!
+    const activeUpdateRes = await request(app)
+      .post(`/api/negotiate/sessions/${sessionId}/constraints`)
+      .send({
+        participantId: counterparty.id,
+        floor: { amount: 30 },
+        ceiling: { amount: 50 },
+        priorities: {},
+      });
+    expect(activeUpdateRes.status).toBe(400);
+    expect(activeUpdateRes.body.error).toContain('Cannot update private constraints: session status is \'active\'');
+  });
 });
