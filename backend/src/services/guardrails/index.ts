@@ -1,4 +1,5 @@
 import { INegotiationRepository, defaultRepository } from '../../db/repository';
+import Redis from 'ioredis';
 
 export interface GuardrailCheckResult {
   allowed: boolean;
@@ -7,6 +8,7 @@ export interface GuardrailCheckResult {
 
 export class NegotiationGuardrails {
   private repo: INegotiationRepository;
+  private redis?: Redis;
 
   // v1 Scope allowlist keywords & forbidden legal/fault concepts (§6)
   private allowedTopics = [
@@ -20,26 +22,39 @@ export class NegotiationGuardrails {
     'custody', 'alimony', 'penalty', 'forfeit'
   ];
 
-  constructor(repo = defaultRepository) {
+  constructor(repo = defaultRepository, redisClient?: Redis) {
     this.repo = repo;
+    this.redis = redisClient;
+  }
+
+  setRedisClient(redisClient?: Redis): void {
+    this.redis = redisClient;
   }
 
   /**
    * §6 Rate limit: max 3 active/recent sessions per user-pair per 7 days.
+   * Uses Redis sorted sets if connected, falling back to in-memory static map.
    */
   async checkRateLimit(humanAId: string, humanBId: string): Promise<GuardrailCheckResult> {
-    // In our repository, check all sessions where both humanA and humanB participated within last 7 days
-    // For simplicity and robust in-memory checking:
+    const pairKey = [humanAId, humanBId].sort().join(':');
     const now = new Date().getTime();
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    
-    // Get all sessions
-    // To check without adding complex repository queries, we can inspect participants
-    let recentSessionCount = 0;
-    // We can track timestamps per pair
-    const pairKey = [humanAId, humanBId].sort().join(':');
+
+    if (this.redis) {
+      const redisKey = `negotiate:ratelimit:pair:${pairKey}`;
+      await this.redis.zremrangebyscore(redisKey, 0, now - sevenDaysMs);
+      const count = await this.redis.zcard(redisKey);
+      if (count >= 3) {
+        return {
+          allowed: false,
+          reason: 'Rate limit exceeded: maximum 3 negotiation sessions per user-pair per 7 days (§6). Prevents passive-aggressive spam.',
+        };
+      }
+      return { allowed: true };
+    }
+
+    // In-memory fallback
     const timestamps = (NegotiationGuardrails.rateLimitTracker.get(pairKey) || []).filter(t => (now - t) < sevenDaysMs);
-    
     if (timestamps.length >= 3) {
       return {
         allowed: false,
@@ -53,6 +68,15 @@ export class NegotiationGuardrails {
   async recordSessionCreation(humanAId: string, humanBId: string): Promise<void> {
     const pairKey = [humanAId, humanBId].sort().join(':');
     const now = new Date().getTime();
+
+    if (this.redis) {
+      const redisKey = `negotiate:ratelimit:pair:${pairKey}`;
+      const member = `${now}-${Math.random().toString(36).substring(2, 9)}`;
+      await this.redis.zadd(redisKey, now, member);
+      await this.redis.expire(redisKey, 7 * 24 * 60 * 60);
+      return;
+    }
+
     const timestamps = NegotiationGuardrails.rateLimitTracker.get(pairKey) || [];
     timestamps.push(now);
     NegotiationGuardrails.rateLimitTracker.set(pairKey, timestamps);

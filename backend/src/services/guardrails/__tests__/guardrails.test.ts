@@ -47,4 +47,28 @@ describe('NegotiationGuardrails (§6)', () => {
     expect(fourth.allowed).toBe(false);
     expect(fourth.reason).toContain('Rate limit exceeded');
   });
+
+  it('should use Redis sorted sets for distributed rate limiting when redisClient is provided (§6)', async () => {
+    let zaddCalled = false;
+    let expireCalled = false;
+    let zcardVal = 0;
+    const mockRedis: any = {
+      zremrangebyscore: async () => 0,
+      zcard: async () => zcardVal,
+      zadd: async () => { zaddCalled = true; return 1; },
+      expire: async () => { expireCalled = true; return 1; },
+    };
+
+    guardrails.setRedisClient(mockRedis);
+    expect((await guardrails.checkRateLimit('u-1', 'u-2')).allowed).toBe(true);
+    
+    await guardrails.recordSessionCreation('u-1', 'u-2');
+    expect(zaddCalled).toBe(true);
+    expect(expireCalled).toBe(true);
+
+    zcardVal = 3;
+    const res = await guardrails.checkRateLimit('u-1', 'u-2');
+    expect(res.allowed).toBe(false);
+    expect(res.reason).toContain('Rate limit exceeded');
+  });
 });
