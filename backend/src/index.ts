@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export * from './db';
+export * from './services';
+
 const app = express();
 const port = process.env.PORT || 3001;
 
