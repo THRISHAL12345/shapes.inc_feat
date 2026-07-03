@@ -62,6 +62,15 @@ export interface NegotiateResolution {
   created_at: Date;
 }
 
+export interface NegotiateHumanResolution {
+  id: string;
+  session_id: string;
+  human_id: string;
+  action: 'accept' | 'counter' | 'ignore';
+  counter_offer?: Record<string, any>;
+  created_at: Date;
+}
+
 export class ConstraintIsolationError extends Error {
   constructor(message: string) {
     super(`[ConstraintIsolationError] ${message}`);

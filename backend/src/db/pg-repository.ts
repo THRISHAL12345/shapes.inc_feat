@@ -8,6 +8,7 @@ import {
   NegotiatePrivateConstraints,
   NegotiateTurn,
   NegotiateResolution,
+  NegotiateHumanResolution,
   SessionStatus,
   SessionVisibility,
   ConsentStatus,
@@ -16,16 +17,17 @@ import {
 } from './types';
 
 export class PostgresNegotiationRepository implements INegotiationRepository {
-  private pool: Pool;
+  constructor(private pool: Pool) {}
 
-  constructor(pool: Pool) {
-    this.pool = pool;
-  }
-
-  async createSession(topic: string, sharedFacts: Record<string, any>, visibility: SessionVisibility = 'participants_and_groups', maxTurns: number = 12): Promise<NegotiateSession> {
+  async createSession(
+    topic: string,
+    sharedFacts: Record<string, any>,
+    visibility: SessionVisibility = 'participants_and_groups',
+    maxTurns: number = 12
+  ): Promise<NegotiateSession> {
     const res = await this.pool.query(
-      `INSERT INTO negotiate_sessions (topic, shared_facts, visibility, max_turns)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO negotiate_sessions (topic, shared_facts, visibility, max_turns, status)
+       VALUES ($1, $2, $3, $4, 'pending_consent')
        RETURNING *`,
       [topic, JSON.stringify(sharedFacts), visibility, maxTurns]
     );
@@ -33,23 +35,28 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
   }
 
   async getSession(sessionId: string): Promise<NegotiateSession | null> {
-    const res = await this.pool.query(`SELECT * FROM negotiate_sessions WHERE id = $1`, [sessionId]);
-    return res.rows[0] || null;
-  }
-
-  async updateSessionStatus(sessionId: string, status: SessionStatus): Promise<NegotiateSession | null> {
-    const resolvedAt = (status === 'converged' || status === 'impasse' || status === 'timeout' || status === 'expired') ? new Date() : null;
     const res = await this.pool.query(
-      `UPDATE negotiate_sessions
-       SET status = $1, resolved_at = COALESCE($2, resolved_at)
-       WHERE id = $3
-       RETURNING *`,
-      [status, resolvedAt, sessionId]
+      `SELECT * FROM negotiate_sessions WHERE id = $1`,
+      [sessionId]
     );
     return res.rows[0] || null;
   }
 
-  async createParticipant(sessionId: string, humanId: string, shapeId: string, role: 'initiator' | 'counterparty'): Promise<NegotiateParticipant> {
+  async updateSessionStatus(sessionId: string, status: SessionStatus): Promise<NegotiateSession | null> {
+    let query = `UPDATE negotiate_sessions SET status = $1 WHERE id = $2 RETURNING *`;
+    if (['converged', 'impasse', 'timeout', 'expired'].includes(status)) {
+      query = `UPDATE negotiate_sessions SET status = $1, resolved_at = now() WHERE id = $2 RETURNING *`;
+    }
+    const res = await this.pool.query(query, [status, sessionId]);
+    return res.rows[0] || null;
+  }
+
+  async createParticipant(
+    sessionId: string,
+    humanId: string,
+    shapeId: string,
+    role: 'initiator' | 'counterparty'
+  ): Promise<NegotiateParticipant> {
     const consentStatus: ConsentStatus = role === 'initiator' ? 'accepted' : 'pending';
     const res = await this.pool.query(
       `INSERT INTO negotiate_participants (session_id, human_id, shape_id, role, consent_status)
@@ -76,7 +83,11 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     return res.rows;
   }
 
-  async updateParticipantConsent(sessionId: string, participantId: string, consentStatus: ConsentStatus): Promise<NegotiateParticipant | null> {
+  async updateParticipantConsent(
+    sessionId: string,
+    participantId: string,
+    consentStatus: ConsentStatus
+  ): Promise<NegotiateParticipant | null> {
     const res = await this.pool.query(
       `UPDATE negotiate_participants SET consent_status = $1 WHERE id = $2 AND session_id = $3 RETURNING *`,
       [consentStatus, participantId, sessionId]
@@ -84,7 +95,13 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     return res.rows[0] || null;
   }
 
-  async createPrivateConstraints(sessionId: string, participantId: string, floorValue: Record<string, any>, ceilingValue: Record<string, any>, priorityWeights: Record<string, any>): Promise<NegotiatePrivateConstraints> {
+  async createPrivateConstraints(
+    sessionId: string,
+    participantId: string,
+    floorValue: Record<string, any>,
+    ceilingValue: Record<string, any>,
+    priorityWeights: Record<string, any>
+  ): Promise<NegotiatePrivateConstraints> {
     const res = await this.pool.query(
       `INSERT INTO negotiate_private_constraints (session_id, participant_id, floor_value, ceiling_value, priority_weights)
        VALUES ($1, $2, $3, $4, $5)
@@ -94,29 +111,23 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     return res.rows[0];
   }
 
-  /**
-   * CRITICAL AGENT INSTRUCTION (§4 & §5.2):
-   * This Postgres repository method takes requestingShapeId and currentContextShapeId.
-   * It throws a ConstraintIsolationError if called from a code path currently
-   * building context for a different shapeId's LLM call.
-   */
-  async getPrivateConstraints(sessionId: string, participantId: string, requestingShapeId: string, currentContextShapeId?: string): Promise<NegotiatePrivateConstraints | null> {
-    const partRes = await this.pool.query(
-      `SELECT shape_id FROM negotiate_participants WHERE id = $1 AND session_id = $2`,
-      [participantId, sessionId]
-    );
-    if (partRes.rows.length === 0) return null;
-    const ownerShapeId = partRes.rows[0].shape_id;
-
-    if (ownerShapeId !== requestingShapeId) {
+  async getPrivateConstraints(
+    sessionId: string,
+    participantId: string,
+    requestingShapeId: string,
+    currentContextShapeId?: string
+  ): Promise<NegotiatePrivateConstraints | null> {
+    if (currentContextShapeId && currentContextShapeId !== requestingShapeId) {
       throw new ConstraintIsolationError(
-        `Security violation: Shape '${requestingShapeId}' attempted to access private constraints of participant '${participantId}' owned by shape '${ownerShapeId}'.`
+        `Strict Rule §5.2 Violation: Attempting to fetch private constraints for shape ${requestingShapeId} during context build for different shape ${currentContextShapeId}. Cross-shape constraint leakage prevented.`
       );
     }
 
-    if (currentContextShapeId && currentContextShapeId !== ownerShapeId) {
+    const participant = await this.getParticipant(sessionId, participantId);
+    if (!participant) return null;
+    if (participant.shape_id !== requestingShapeId) {
       throw new ConstraintIsolationError(
-        `Security violation: Attempted to fetch private constraints of shape '${ownerShapeId}' while building LLM context for shape '${currentContextShapeId}'.`
+        `Strict Rule §5.2 Violation: Shape ${requestingShapeId} is not authorized to access private constraints of participant ${participantId} (owned by shape ${participant.shape_id}).`
       );
     }
 
@@ -127,7 +138,14 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     return res.rows[0] || null;
   }
 
-  async createTurn(sessionId: string, participantId: string, turnNumber: number, offer: Record<string, any>, rationale: string, gapAfter?: Record<string, any>): Promise<NegotiateTurn> {
+  async createTurn(
+    sessionId: string,
+    participantId: string,
+    turnNumber: number,
+    offer: Record<string, any>,
+    rationale: string,
+    gapAfter?: Record<string, any>
+  ): Promise<NegotiateTurn> {
     const res = await this.pool.query(
       `INSERT INTO negotiate_turns (session_id, participant_id, turn_number, offer, rationale, gap_after)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -145,7 +163,13 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     return res.rows;
   }
 
-  async createResolution(sessionId: string, outcome: ResolutionOutcome, finalTerms?: Record<string, any>, confidence?: number, divergenceNotes?: string): Promise<NegotiateResolution> {
+  async createResolution(
+    sessionId: string,
+    outcome: ResolutionOutcome,
+    finalTerms?: Record<string, any>,
+    confidence?: number,
+    divergenceNotes?: string
+  ): Promise<NegotiateResolution> {
     const res = await this.pool.query(
       `INSERT INTO negotiate_resolutions (session_id, outcome, final_terms, confidence, divergence_notes)
        VALUES ($1, $2, $3, $4, $5)
@@ -161,5 +185,28 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
       [sessionId]
     );
     return res.rows[0] || null;
+  }
+
+  async createHumanResolution(
+    sessionId: string,
+    humanId: string,
+    action: 'accept' | 'counter' | 'ignore',
+    counterOffer?: Record<string, any>
+  ): Promise<NegotiateHumanResolution> {
+    const res = await this.pool.query(
+      `INSERT INTO negotiate_human_resolutions (session_id, human_id, action, counter_offer)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [sessionId, humanId, action, counterOffer ? JSON.stringify(counterOffer) : null]
+    );
+    return res.rows[0];
+  }
+
+  async getHumanResolutionsBySession(sessionId: string): Promise<NegotiateHumanResolution[]> {
+    const res = await this.pool.query(
+      `SELECT * FROM negotiate_human_resolutions WHERE session_id = $1 ORDER BY created_at ASC`,
+      [sessionId]
+    );
+    return res.rows;
   }
 }

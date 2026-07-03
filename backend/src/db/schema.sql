@@ -59,3 +59,12 @@ CREATE TABLE IF NOT EXISTS negotiate_resolutions (
   divergence_notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS negotiate_human_resolutions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES negotiate_sessions(id),
+  human_id UUID NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('accept', 'counter', 'ignore')),
+  counter_offer JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -4,6 +4,7 @@ import {
   NegotiatePrivateConstraints,
   NegotiateTurn,
   NegotiateResolution,
+  NegotiateHumanResolution,
   SessionStatus,
   SessionVisibility,
   ConsentStatus,
@@ -30,6 +31,9 @@ export interface INegotiationRepository {
   
   createResolution(sessionId: string, outcome: ResolutionOutcome, finalTerms?: Record<string, any>, confidence?: number, divergenceNotes?: string): Promise<NegotiateResolution>;
   getResolution(sessionId: string): Promise<NegotiateResolution | null>;
+
+  createHumanResolution(sessionId: string, humanId: string, action: 'accept' | 'counter' | 'ignore', counterOffer?: Record<string, any>): Promise<NegotiateHumanResolution>;
+  getHumanResolutionsBySession(sessionId: string): Promise<NegotiateHumanResolution[]>;
 }
 
 export class InMemoryNegotiationRepository implements INegotiationRepository {
@@ -38,6 +42,7 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
   private constraints: Map<string, NegotiatePrivateConstraints> = new Map();
   private turns: Map<string, NegotiateTurn[]> = new Map();
   private resolutions: Map<string, NegotiateResolution> = new Map();
+  private humanResolutions: Map<string, NegotiateHumanResolution[]> = new Map();
 
   async createSession(topic: string, sharedFacts: Record<string, any>, visibility: SessionVisibility = 'participants_and_groups', maxTurns: number = 12): Promise<NegotiateSession> {
     const session: NegotiateSession = {
@@ -51,6 +56,7 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
     };
     this.sessions.set(session.id, session);
     this.turns.set(session.id, []);
+    this.humanResolutions.set(session.id, []);
     return session;
   }
 
@@ -89,7 +95,11 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
   }
 
   async getParticipantsBySession(sessionId: string): Promise<NegotiateParticipant[]> {
-    return Array.from(this.participants.values()).filter(p => p.session_id === sessionId);
+    const list: NegotiateParticipant[] = [];
+    for (const p of this.participants.values()) {
+      if (p.session_id === sessionId) list.push(p);
+    }
+    return list;
   }
 
   async updateParticipantConsent(sessionId: string, participantId: string, consentStatus: ConsentStatus): Promise<NegotiateParticipant | null> {
@@ -100,7 +110,13 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
     return p;
   }
 
-  async createPrivateConstraints(sessionId: string, participantId: string, floorValue: Record<string, any>, ceilingValue: Record<string, any>, priorityWeights: Record<string, any>): Promise<NegotiatePrivateConstraints> {
+  async createPrivateConstraints(
+    sessionId: string,
+    participantId: string,
+    floorValue: Record<string, any>,
+    ceilingValue: Record<string, any>,
+    priorityWeights: Record<string, any>
+  ): Promise<NegotiatePrivateConstraints> {
     const constraint: NegotiatePrivateConstraints = {
       id: randomUUID(),
       session_id: sessionId,
@@ -114,37 +130,37 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
     return constraint;
   }
 
-  /**
-   * CRITICAL AGENT INSTRUCTION (§4 & §5.2):
-   * This repository method takes requestingShapeId and currentContextShapeId.
-   * It throws a ConstraintIsolationError if called from a code path currently
-   * building context for a different shapeId's LLM call.
-   */
-  async getPrivateConstraints(sessionId: string, participantId: string, requestingShapeId: string, currentContextShapeId?: string): Promise<NegotiatePrivateConstraints | null> {
-    const participant = this.participants.get(participantId);
-    if (!participant || participant.session_id !== sessionId) {
-      return null;
-    }
-
-    // Strict Rule 1: Requesting shape must match participant's shape_id
-    if (participant.shape_id !== requestingShapeId) {
+  async getPrivateConstraints(
+    sessionId: string,
+    participantId: string,
+    requestingShapeId: string,
+    currentContextShapeId?: string
+  ): Promise<NegotiatePrivateConstraints | null> {
+    if (currentContextShapeId && currentContextShapeId !== requestingShapeId) {
       throw new ConstraintIsolationError(
-        `Security violation: Shape '${requestingShapeId}' attempted to access private constraints of participant '${participantId}' owned by shape '${participant.shape_id}'.`
+        `Strict Rule §5.2 Violation: Attempting to fetch private constraints for shape ${requestingShapeId} during context build for different shape ${currentContextShapeId}. Cross-shape constraint leakage prevented.`
       );
     }
 
-    // Strict Rule 2: If we are currently executing inside an LLM context builder for a shape,
-    // that context shape must strictly match the owner shape.
-    if (currentContextShapeId && currentContextShapeId !== participant.shape_id) {
+    const participant = await this.getParticipant(sessionId, participantId);
+    if (!participant) return null;
+    if (participant.shape_id !== requestingShapeId) {
       throw new ConstraintIsolationError(
-        `Security violation: Attempted to fetch private constraints of shape '${participant.shape_id}' while building LLM context for shape '${currentContextShapeId}'.`
+        `Strict Rule §5.2 Violation: Shape ${requestingShapeId} is not authorized to access private constraints of participant ${participantId} (owned by shape ${participant.shape_id}).`
       );
     }
 
     return this.constraints.get(`${sessionId}:${participantId}`) || null;
   }
 
-  async createTurn(sessionId: string, participantId: string, turnNumber: number, offer: Record<string, any>, rationale: string, gapAfter?: Record<string, any>): Promise<NegotiateTurn> {
+  async createTurn(
+    sessionId: string,
+    participantId: string,
+    turnNumber: number,
+    offer: Record<string, any>,
+    rationale: string,
+    gapAfter?: Record<string, any>
+  ): Promise<NegotiateTurn> {
     const turn: NegotiateTurn = {
       id: randomUUID(),
       session_id: sessionId,
@@ -180,6 +196,25 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
 
   async getResolution(sessionId: string): Promise<NegotiateResolution | null> {
     return this.resolutions.get(sessionId) || null;
+  }
+
+  async createHumanResolution(sessionId: string, humanId: string, action: 'accept' | 'counter' | 'ignore', counterOffer?: Record<string, any>): Promise<NegotiateHumanResolution> {
+    const hr: NegotiateHumanResolution = {
+      id: randomUUID(),
+      session_id: sessionId,
+      human_id: humanId,
+      action,
+      counter_offer: counterOffer,
+      created_at: new Date(),
+    };
+    const list = this.humanResolutions.get(sessionId) || [];
+    list.push(hr);
+    this.humanResolutions.set(sessionId, list);
+    return hr;
+  }
+
+  async getHumanResolutionsBySession(sessionId: string): Promise<NegotiateHumanResolution[]> {
+    return this.humanResolutions.get(sessionId) || [];
   }
 }
 
