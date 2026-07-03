@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryNegotiationRepository } from '../../../db/repository';
 import { ConstraintIsolationError } from '../../../db/types';
-import { buildTurnContext, assertNoCrossShapeConstraintLeak } from '../buildContext';
+import { buildTurnContext, assertNoCrossShapeConstraintLeak } from '../index';
 
 describe('Constraint Isolation Test (§1.1, §5.2, §9.2)', () => {
   let repo: InMemoryNegotiationRepository;

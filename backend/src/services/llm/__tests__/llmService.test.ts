@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { NegotiationLLMService } from '../llmService';
+import { NegotiationLLMService } from '../index';
 import { InMemoryNegotiationRepository } from '../../../db/repository';
 
 describe('NegotiationLLMService', () => {
