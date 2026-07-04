@@ -51,6 +51,14 @@ export class NegotiationOrchestrator {
     this.notify = notify;
   }
 
+  setRepository(repo: INegotiationRepository): void {
+    this.repo = repo;
+  }
+
+  setLock(lock: ITurnLock): void {
+    this.lock = lock;
+  }
+
   /**
    * §3.1 Initiation & §5.5 Pre-session sanity check
    */
