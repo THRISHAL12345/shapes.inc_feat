@@ -176,4 +176,39 @@ describe('NegotiationOrchestrator (§3, §5.1, §5.3)', () => {
     expect(resolutions[0].action).toBe('counter');
     expect(resolutions[0].counter_offer).toEqual({ amount: 600 });
   });
+
+  it('should use dynamic proportional convergence tolerance based on 5% of deal size (§3.3, §8)', async () => {
+    // For a deal size of $400, 5% tolerance is $20.
+    // In mock LLM: turn 1 initiator proposes $50. Turn 2 counterparty proposes $65 (70 - 5 = $65).
+    // The gap is |65 - 50| = $15. Since $15 <= $20 tolerance, it should converge on turn 2!
+    const session = await orchestrator.initiateSession({
+      topic: 'High Value Contract Agreement',
+      sharedFacts: { total: 400 },
+      initiatorHumanId: 'human-X',
+      initiatorShapeId: 'shape-X',
+      initiatorFloor: { amount: 40 },
+      initiatorCeiling: { amount: 80 },
+      initiatorPriorities: { value: 1 },
+      counterpartyHumanId: 'human-Y',
+      counterpartyShapeId: 'shape-Y',
+    });
+
+    const participants = await repo.getParticipantsBySession(session.id);
+    const counterparty = participants.find(p => p.role === 'counterparty');
+    await orchestrator.respondToConsent({
+      sessionId: session.id,
+      participantId: counterparty!.id,
+      accept: true,
+      floor: { amount: 40 },
+      ceiling: { amount: 80 },
+      priorities: { value: 1 },
+    });
+
+    const t1 = await orchestrator.executeNextTurn(session.id);
+    expect(t1.sessionStatus).toBe('active');
+
+    const t2 = await orchestrator.executeNextTurn(session.id);
+    expect(t2.sessionStatus).toBe('converged');
+    expect(t2.resolution?.outcome).toBe('converged');
+  });
 });

@@ -222,11 +222,22 @@ export class NegotiationOrchestrator {
       let divergenceNotes: string | undefined;
       let confidence = 0.9;
 
+      const baseAmount = Number(
+        session.shared_facts?.amount ??
+        session.shared_facts?.total ??
+        session.shared_facts?.rent ??
+        session.shared_facts?.salary ??
+        session.shared_facts?.baseSalary ??
+        session.shared_facts?.budget ??
+        100
+      );
+      const tolerance = Math.max(5, baseAmount * 0.05);
+
       if (turnResp.flag_impasse) {
         newStatus = 'impasse';
         resolutionOutcome = 'impasse';
         divergenceNotes = turnResp.rationale || `Shape ${activeParticipant.shape_id} flagged impasse: no further movement possible within constraints.`;
-      } else if (gapAfter && typeof gapAfter.amountGap === 'number' && gapAfter.amountGap <= 5) {
+      } else if (gapAfter && typeof gapAfter.amountGap === 'number' && gapAfter.amountGap <= tolerance) {
         // Convergence tolerance band (§3.3)
         newStatus = 'converged';
         resolutionOutcome = 'converged';
