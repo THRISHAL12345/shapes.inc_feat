@@ -5,3 +5,4 @@ export * from './TranscriptView';
 export * from './ResolutionCard';
 export * from './ConstraintModal';
 export * from './NegotiationSubThread';
+export * from './LiveNegotiationView';

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { NegotiationSubThread } from './components';
+import { NegotiationSubThread, LiveNegotiationView } from './components';
 import { TurnItem } from './components/TranscriptView';
 
 export default function App() {
-  const [activeScenario, setActiveScenario] = useState<'converge' | 'impasse' | 'expired'>('converge');
+  const [activeScenario, setActiveScenario] = useState<'converge' | 'impasse' | 'expired' | 'live'>('live');
 
   // Interactive state for scenario 1 (Happy path)
   const [happyStatus, setHappyStatus] = useState<string>('pending_consent');
@@ -127,7 +127,18 @@ export default function App() {
         </p>
 
         {/* Scenario Selector Tabs */}
-        <div className="flex justify-center space-x-2 mt-6">
+        <div className="flex flex-wrap justify-center gap-2 mt-6">
+          <button
+            type="button"
+            onClick={() => setActiveScenario('live')}
+            className={`px-4 py-2 rounded-shapes-sm text-xs font-bold transition-all ${
+              activeScenario === 'live'
+                ? 'bg-gradient-to-r from-shapes-violet-500 to-shapes-cyan-400 text-shapes-void font-extrabold shadow-shapes-glow'
+                : 'bg-shapes-surface hover:bg-shapes-hover text-shapes-cyan-400 border border-[var(--shapes-border-strong)]'
+            }`}
+          >
+            ⚡ Live API & Realtime SSE Mode
+          </button>
           <button
             type="button"
             onClick={() => setActiveScenario('converge')}
@@ -166,6 +177,10 @@ export default function App() {
 
       {/* Scenario Content Display */}
       <main className="max-w-4xl mx-auto">
+        {activeScenario === 'live' && (
+          <LiveNegotiationView />
+        )}
+
         {activeScenario === 'converge' && (
           <div>
             <div className="text-center mb-3 flex justify-center items-center space-x-3">
