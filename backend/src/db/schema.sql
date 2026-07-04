@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS negotiate_sessions (
 CREATE TABLE IF NOT EXISTS negotiate_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES negotiate_sessions(id),
-  human_id UUID NOT NULL,
-  shape_id UUID NOT NULL,
+  human_id TEXT NOT NULL,
+  shape_id TEXT NOT NULL,
   role TEXT NOT NULL, -- e.g. 'initiator', 'counterparty'
   consent_status TEXT NOT NULL DEFAULT 'pending'
     CHECK (consent_status IN ('pending', 'accepted', 'declined')),
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS negotiate_resolutions (
 CREATE TABLE IF NOT EXISTS negotiate_human_resolutions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES negotiate_sessions(id),
-  human_id UUID NOT NULL,
+  human_id TEXT NOT NULL,
   action TEXT NOT NULL CHECK (action IN ('accept', 'counter', 'ignore')),
   counter_offer JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
