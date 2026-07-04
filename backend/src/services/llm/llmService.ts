@@ -51,7 +51,7 @@ Shared facts (visible to both sides): ${JSON.stringify(context.sharedFacts)}
 Your human's floor: ${JSON.stringify(context.ownFloor)}
 Your human's ceiling: ${JSON.stringify(context.ownCeiling)}
 Your human's priorities, in order: ${JSON.stringify(context.ownPriorities)}
-
+${context.ownReactions && context.ownReactions.length > 0 ? `Your human's nudge reactions to your previous offers (emoji signals): ${JSON.stringify(context.ownReactions)}\n` : ''}
 Turn history so far (all turns, both sides):
 ${JSON.stringify(context.turnHistory, null, 2)}
 

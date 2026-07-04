@@ -227,8 +227,9 @@ export function createNegotiationRouter(
     try {
       const { id } = req.params;
       const { shapeId, emoji } = req.body;
+      const rx = await getRepo().createReaction(id, shapeId, emoji);
       console.log(`[api] Recorded emoji reaction '${emoji}' for shape ${shapeId} in session ${id}`);
-      res.json({ status: 'reaction_recorded', shapeId, emoji });
+      res.json({ status: 'reaction_recorded', shapeId, emoji, id: rx.id });
     } catch (err: any) {
       res.status(400).json({ error: err.message || 'Failed to record reaction' });
     }

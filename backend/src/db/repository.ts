@@ -5,6 +5,7 @@ import {
   NegotiateTurn,
   NegotiateResolution,
   NegotiateHumanResolution,
+  NegotiateReaction,
   SessionStatus,
   SessionVisibility,
   ConsentStatus,
@@ -34,6 +35,9 @@ export interface INegotiationRepository {
 
   createHumanResolution(sessionId: string, humanId: string, action: 'accept' | 'counter' | 'ignore', counterOffer?: Record<string, any>): Promise<NegotiateHumanResolution>;
   getHumanResolutionsBySession(sessionId: string): Promise<NegotiateHumanResolution[]>;
+
+  createReaction(sessionId: string, shapeId: string, emoji: string): Promise<NegotiateReaction>;
+  getReactionsBySessionAndShape(sessionId: string, shapeId: string): Promise<NegotiateReaction[]>;
 }
 
 export class InMemoryNegotiationRepository implements INegotiationRepository {
@@ -43,6 +47,7 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
   private turns: Map<string, NegotiateTurn[]> = new Map();
   private resolutions: Map<string, NegotiateResolution> = new Map();
   private humanResolutions: Map<string, NegotiateHumanResolution[]> = new Map();
+  private reactions: Map<string, NegotiateReaction[]> = new Map();
 
   async createSession(topic: string, sharedFacts: Record<string, any>, visibility: SessionVisibility = 'participants_and_groups', maxTurns: number = 12): Promise<NegotiateSession> {
     const session: NegotiateSession = {
@@ -215,6 +220,25 @@ export class InMemoryNegotiationRepository implements INegotiationRepository {
 
   async getHumanResolutionsBySession(sessionId: string): Promise<NegotiateHumanResolution[]> {
     return this.humanResolutions.get(sessionId) || [];
+  }
+
+  async createReaction(sessionId: string, shapeId: string, emoji: string): Promise<NegotiateReaction> {
+    const rx: NegotiateReaction = {
+      id: randomUUID(),
+      session_id: sessionId,
+      shape_id: shapeId,
+      emoji,
+      created_at: new Date(),
+    };
+    const list = this.reactions.get(sessionId) || [];
+    list.push(rx);
+    this.reactions.set(sessionId, list);
+    return rx;
+  }
+
+  async getReactionsBySessionAndShape(sessionId: string, shapeId: string): Promise<NegotiateReaction[]> {
+    const list = this.reactions.get(sessionId) || [];
+    return list.filter(r => r.shape_id === shapeId);
   }
 }
 

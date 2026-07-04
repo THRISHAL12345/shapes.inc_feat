@@ -135,6 +135,11 @@ describe('Negotiate API Routes & DTO Constraint Stripping (§6, §8)', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('reaction_recorded');
     expect(res.body.emoji).toBe('👍');
+    expect(res.body.id).toBeDefined();
+
+    const stored = await defaultRepository.getReactionsBySessionAndShape('test-session-id', 'shape-100');
+    expect(stored).toHaveLength(1);
+    expect(stored[0].emoji).toBe('👍');
   });
 
   it('should guard POST /sessions/:id/constraints against mid-session overwrites and bad-faith asks (§5.5, §8)', async () => {

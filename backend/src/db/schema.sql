@@ -68,3 +68,11 @@ CREATE TABLE IF NOT EXISTS negotiate_human_resolutions (
   counter_offer JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS negotiate_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES negotiate_sessions(id),
+  shape_id TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -71,6 +71,14 @@ export interface NegotiateHumanResolution {
   created_at: Date;
 }
 
+export interface NegotiateReaction {
+  id: string;
+  session_id: string;
+  shape_id: string;
+  emoji: string;
+  created_at: Date;
+}
+
 export class ConstraintIsolationError extends Error {
   constructor(message: string) {
     super(`[ConstraintIsolationError] ${message}`);

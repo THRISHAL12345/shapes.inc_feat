@@ -74,4 +74,17 @@ describe('Constraint Isolation Test (§1.1, §5.2, §9.2)', () => {
       repo.getPrivateConstraints(sessionId, pBId, 'shape-B', 'shape-A')
     ).rejects.toThrow(ConstraintIsolationError);
   });
+
+  it('should include ownReactions in context without exposing counterparty reactions (§6, §8)', async () => {
+    await repo.createReaction(sessionId, 'shape-A', '👍');
+    await repo.createReaction(sessionId, 'shape-B', '🔥');
+
+    const contextA = await buildTurnContext(sessionId, pAId, repo);
+    expect(contextA.ownReactions).toEqual(['👍']);
+    expect(contextA.ownReactions).not.toContain('🔥');
+
+    const contextB = await buildTurnContext(sessionId, pBId, repo);
+    expect(contextB.ownReactions).toEqual(['🔥']);
+    expect(contextB.ownReactions).not.toContain('👍');
+  });
 });

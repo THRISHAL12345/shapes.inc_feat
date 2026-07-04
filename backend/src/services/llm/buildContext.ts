@@ -8,6 +8,7 @@ export interface TurnContext {
   ownCeiling: Record<string, any>;
   ownPriorities: Record<string, any>;
   turnHistory: NegotiateTurn[];
+  ownReactions?: string[];
 }
 
 /**
@@ -47,6 +48,9 @@ export async function buildTurnContext(
     throw new Error(`Private constraints for participant '${participantId}' not found.`);
   }
 
+  const reactions = await repo.getReactionsBySessionAndShape(sessionId, participant.shape_id);
+  const ownReactions = reactions.map(r => r.emoji);
+
   // NOTE: do not add a "getOtherParticipantConstraints" call here, ever.
   // If a future feature needs cross-visibility (e.g. a debug/admin view),
   // it must live in a completely separate, explicitly-named admin path,
@@ -58,6 +62,7 @@ export async function buildTurnContext(
     ownCeiling: ownConstraints.ceiling_value,
     ownPriorities: ownConstraints.priority_weights,
     turnHistory: history,
+    ownReactions,
   };
 }
 

@@ -9,6 +9,7 @@ import {
   NegotiateTurn,
   NegotiateResolution,
   NegotiateHumanResolution,
+  NegotiateReaction,
   SessionStatus,
   SessionVisibility,
   ConsentStatus,
@@ -206,6 +207,24 @@ export class PostgresNegotiationRepository implements INegotiationRepository {
     const res = await this.pool.query(
       `SELECT * FROM negotiate_human_resolutions WHERE session_id = $1 ORDER BY created_at ASC`,
       [sessionId]
+    );
+    return res.rows;
+  }
+
+  async createReaction(sessionId: string, shapeId: string, emoji: string): Promise<NegotiateReaction> {
+    const res = await this.pool.query(
+      `INSERT INTO negotiate_reactions (session_id, shape_id, emoji)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [sessionId, shapeId, emoji]
+    );
+    return res.rows[0];
+  }
+
+  async getReactionsBySessionAndShape(sessionId: string, shapeId: string): Promise<NegotiateReaction[]> {
+    const res = await this.pool.query(
+      `SELECT * FROM negotiate_reactions WHERE session_id = $1 AND shape_id = $2 ORDER BY created_at ASC`,
+      [sessionId, shapeId]
     );
     return res.rows;
   }
