@@ -170,17 +170,22 @@ export function createNegotiationRouter(
     res.write(`data: ${JSON.stringify({ type: 'connected', sessionId: id })}\n\n`);
 
     const onConsent = (card: any) => {
-      if (card.sessionId === id) res.write(`data: ${JSON.stringify({ type: 'consent', data: card })}\n\n`);
+      if (card.sessionId === id) res.write(`event: consent\ndata: ${JSON.stringify({ type: 'consent', data: card })}\n\n`);
+    };
+    const onTurn = (card: any) => {
+      if (card.sessionId === id) res.write(`event: turn\ndata: ${JSON.stringify({ type: 'turn', data: card.turn || card })}\n\n`);
     };
     const onResolution = (card: any) => {
-      if (card.sessionId === id) res.write(`data: ${JSON.stringify({ type: 'resolution', data: card })}\n\n`);
+      if (card.sessionId === id) res.write(`event: resolved\ndata: ${JSON.stringify({ type: 'resolved', data: card })}\n\n`);
     };
 
     notify.on('consent_request', onConsent);
+    notify.on('turn_generated', onTurn);
     notify.on('resolution_notify', onResolution);
 
     req.on('close', () => {
       notify.off('consent_request', onConsent);
+      notify.off('turn_generated', onTurn);
       notify.off('resolution_notify', onResolution);
     });
   });

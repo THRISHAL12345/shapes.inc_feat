@@ -19,9 +19,17 @@ export interface ResolutionNotifyCard {
   participants: NegotiateParticipant[];
 }
 
+export interface TurnNotifyCard {
+  sessionId: string;
+  turnNumber: number;
+  turn: any;
+  participant?: any;
+}
+
 export class NegotiationNotifyService extends EventEmitter {
   private sentConsentCards: ConsentRequestCard[] = [];
   private sentResolutionCards: ResolutionNotifyCard[] = [];
+  private sentTurnCards: TurnNotifyCard[] = [];
 
   async sendConsentRequest(card: ConsentRequestCard): Promise<void> {
     this.sentConsentCards.push(card);
@@ -35,12 +43,22 @@ export class NegotiationNotifyService extends EventEmitter {
     console.log(`[notify] Sent resolution card (${card.outcome}) for session ${card.sessionId}`);
   }
 
+  async sendTurnNotify(card: TurnNotifyCard): Promise<void> {
+    this.sentTurnCards.push(card);
+    this.emit('turn_generated', card);
+    console.log(`[notify] Sent turn notification for session ${card.sessionId} (turn ${card.turnNumber})`);
+  }
+
   getSentConsentCards(): ConsentRequestCard[] {
     return this.sentConsentCards;
   }
 
   getSentResolutionCards(): ResolutionNotifyCard[] {
     return this.sentResolutionCards;
+  }
+
+  getSentTurnCards(): TurnNotifyCard[] {
+    return this.sentTurnCards;
   }
 }
 

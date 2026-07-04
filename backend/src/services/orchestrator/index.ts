@@ -209,6 +209,13 @@ export class NegotiationOrchestrator {
         gapAfter
       );
 
+      await this.notify.sendTurnNotify({
+        sessionId,
+        turnNumber,
+        turn,
+        participant: activeParticipant,
+      });
+
       // Check termination conditions (§3.3)
       let newStatus: SessionStatus = 'active';
       let resolutionOutcome: 'converged' | 'impasse' | 'timeout' | undefined;
