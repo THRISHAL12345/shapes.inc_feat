@@ -12,11 +12,15 @@ import { toSessionResponseDTO } from './dto';
  */
 export function createNegotiationRouter(
   orchestrator: NegotiationOrchestrator = defaultOrchestrator,
-  repo: INegotiationRepository = defaultRepository,
+  repo?: INegotiationRepository,
   guardrails: NegotiationGuardrails = defaultGuardrails,
   notify: NegotiationNotifyService = defaultNotifyService,
   llm: NegotiationLLMService = defaultLLMService
 ): Router {
+  if (repo && repo !== defaultRepository) {
+    orchestrator.setRepository(repo);
+  }
+  const getRepo = () => orchestrator.getRepository();
   const router = Router();
 
   /**
@@ -57,8 +61,8 @@ export function createNegotiationRouter(
 
       await guardrails.recordSessionCreation(initiatorHumanId, counterpartyHumanId);
 
-      const participants = await repo.getParticipantsBySession(session.id);
-      const turns = await repo.getVisibleTurns(session.id);
+      const participants = await getRepo().getParticipantsBySession(session.id);
+      const turns = await getRepo().getVisibleTurns(session.id);
       const dto = toSessionResponseDTO(session, participants, turns, null);
 
       res.status(201).json(dto);
@@ -85,9 +89,9 @@ export function createNegotiationRouter(
         priorities,
       });
 
-      const participants = await repo.getParticipantsBySession(id);
-      const turns = await repo.getVisibleTurns(id);
-      const resolution = await repo.getResolution(id);
+      const participants = await getRepo().getParticipantsBySession(id);
+      const turns = await getRepo().getVisibleTurns(id);
+      const resolution = await getRepo().getResolution(id);
       const dto = toSessionResponseDTO(updated, participants, turns, resolution);
 
       res.json(dto);
@@ -105,7 +109,7 @@ export function createNegotiationRouter(
       const { id } = req.params;
       const { participantId, floor, ceiling, priorities } = req.body;
 
-      const session = await repo.getSession(id);
+      const session = await getRepo().getSession(id);
       if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;
@@ -121,7 +125,7 @@ export function createNegotiationRouter(
         return;
       }
 
-      await repo.createPrivateConstraints(id, participantId, floor, ceiling, priorities);
+      await getRepo().createPrivateConstraints(id, participantId, floor, ceiling, priorities);
       res.json({ status: 'recorded', message: 'Private constraints updated securely.' });
     } catch (err: any) {
       res.status(400).json({ error: err.message || 'Failed to save constraints' });
@@ -135,15 +139,15 @@ export function createNegotiationRouter(
   router.get('/sessions/:id', async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const session = await repo.getSession(id);
+      const session = await getRepo().getSession(id);
       if (!session) {
         res.status(404).json({ error: 'Session not found' });
         return;
       }
 
-      const participants = await repo.getParticipantsBySession(id);
-      const turns = await repo.getVisibleTurns(id);
-      const resolution = await repo.getResolution(id);
+      const participants = await getRepo().getParticipantsBySession(id);
+      const turns = await getRepo().getVisibleTurns(id);
+      const resolution = await getRepo().getResolution(id);
       const dto = toSessionResponseDTO(session, participants, turns, resolution);
 
       res.json(dto);

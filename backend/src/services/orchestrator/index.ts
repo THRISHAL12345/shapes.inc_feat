@@ -55,6 +55,10 @@ export class NegotiationOrchestrator {
     this.repo = repo;
   }
 
+  getRepository(): INegotiationRepository {
+    return this.repo;
+  }
+
   setLock(lock: ITurnLock): void {
     this.lock = lock;
   }
